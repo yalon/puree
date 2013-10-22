@@ -1,0 +1,111 @@
+# Based on https://github.com/sindresorhus/pure, MIT License
+
+# For my own and others sanity
+# git:
+# %b => current branch
+# %a => current action (rebase/merge)
+# prompt:
+# %F => color dict
+# %f => reset color
+# %~ => current path
+# %* => time
+# %n => username
+# %m => shortname host
+# %(?..) => prompt conditional - %(condition.true.false)
+
+# fastest possible way to check if repo is dirty
+prompt_puree_git_dirty() {
+	# check if we're in a git repo
+	command git rev-parse --is-inside-work-tree &>/dev/null || return
+	# check if it's dirty
+	command git diff --quiet --ignore-submodules HEAD &>/dev/null
+
+	(($? == 1)) && echo '*'
+}
+
+# runs just before executing a command
+prompt_puree_preexec() {
+	last_cmd_start_time=$SECONDS
+	last_cmd_elapsed_time=-1
+
+	# shows the current dir and executed command in the title when a process is active
+	print -Pn "\e]0;"
+	echo -nE "$PWD:t: $2"
+    print -Pn "\a"
+}
+
+# runs every time (even on empty lines)
+prompt_puree_precmd() {
+	if (( last_cmd_start_time >= 0 && last_cmd_elapsed_time < 0 )) then
+		(( last_cmd_elapsed_time = SECONDS - last_cmd_start_time ))
+		(( last_cmd_start_time = -1 ))
+	fi
+
+	if (( last_cmd_elapsed_time > ${PURE_CMD_MAX_EXEC_TIME:=5} )) then
+		last_cmd_elapsed_str="${last_cmd_elapsed_time}s"
+	else
+		last_cmd_elapsed_str=""
+	fi
+
+	# shows the full path in the title
+	print -Pn '\e]0;%~\a'
+
+	# git info
+	vcs_info
+
+	# rvm
+	rvm_prompt=""
+	if [[ ! -z $rvm_path ]] then
+		rvm=$(rvm-prompt v g)
+		if [[ ! -z $rvm ]] rvm_rprompt="%F{cyan%}rvm:%f${rvm}"
+	fi
+
+	if [[ "$VIRTUAL_ENV" != "" ]] then
+		virtualenv_rprompt="%F{cyan%}venv:%f$(basename $VIRTUAL_ENV)"
+	else
+		virtualenv_rprompt=""
+	fi
+
+	last_cmd_exit_code='%(?..%F{red%}[%?]%f)'
+	rprompt_list=($virtualenv_rprompt $rvm_rprompt $last_cmd_elapsed_str $last_cmd_exit_code)
+	# This piece of zsh-magic filters out empty string elements from the array and then join everything with ' ' sep.
+	RPROMPT=${(j: :)${rprompt_list[@]}}
+}
+
+
+prompt_puree_setup() {
+	prompt_opts=(cr subst percent)
+
+	autoload -Uz add-zsh-hook
+	autoload -Uz vcs_info
+
+	add-zsh-hook precmd prompt_puree_precmd
+	add-zsh-hook preexec prompt_puree_preexec
+
+	zstyle ':vcs_info:*' enable git svn
+	zstyle ':vcs_info:git*' formats ' %F{green%}%s:%b'
+	zstyle ':vcs_info:git*' actionformats ' %F{green%}%s:%b|%a'
+
+	# show username@host if logged in through SSH
+	[[ "$SSH_CONNECTION" != '' ]] && prompt_puree_username='%F{yellow%}%n@%m '
+
+	last_cmd_start_time=-1
+	last_cmd_elapsed_time=-1
+
+	# left-hand prompt consists of:
+	# [user@host if ssh] <path> [vcs info] >
+	#   where the > turns red if the last command exitted with non-zero exit code.
+	PROMPT='$prompt_puree_username%F{blue%}%~%F{242%}$vcs_info_msg_0_`prompt_puree_git_dirty`%(?.%F{magenta%}.%F{red%})❯%f '
+
+	# right-hand prompt consists of:
+	# [virtualenv] [rvm] [last cmd time elapsed] [exit code]
+	#   where each element is optional and:
+	#     - last cmd time elapsed appears only if last cmd execution is greater than $PURE_CMD_MAX_EXEC_TIME (def: 5s)
+	#     - exit code appears in red if it's non-zero
+	RPROMPT='${virtualenv_rprompt} ${rvm_rprompt} ${last_cmd_elapsed_str} %(?.. %F{red%}[%?]%f)'
+
+	# disable virtualenv prompt because we already have our own:
+	VIRTUAL_ENV_DISABLE_PROMPT=1
+}
+
+prompt_puree_setup "$@"
