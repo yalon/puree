@@ -14,7 +14,7 @@ Features:
 
 ### Brute-force
 
-Either source the prompt_puree_setup file and then run `prompt puree` or symlink it to your zprezto/yadr/other
+Either source the `prompt_puree_setup` file and then run `prompt puree` or symlink it to your zprezto/yadr/other
 configuration framework's prompt directory.
 
 ### (Almost) non-intrusive
@@ -24,7 +24,8 @@ following:
 * Create a ~/.zsh.prompts directory
 * Edit .zshrc and add at the beginning (_before_ sourcing the configuration framework's code):
 
-    # Add custom prompts to fpath before loading zprezto:
+    \# Add custom prompts to fpath before loading zprezto:
+
     if [[ -s "$HOME/.zsh.prompts" ]] fpath=($HOME/.zsh.prompts $fpath)
 
-* symlink the prompt_puree_setup to the .zsh.prompts directory
+* symlink the `prompt_puree_setup` to the .zsh.prompts directory
